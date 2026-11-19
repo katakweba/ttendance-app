@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Staff Attendance System | HQ & Branches</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.14/dist/face-api.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .glass { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); }
+    .card-hover { transition: all 0.2s ease; }
+    .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.1); }
+    .status-in { background: #dcfce7; color: #166534; }
+    .status-out { background: #fee2e2; color: #991b1b; }
+    .status-late { background: #fef3c7; color: #92400e; }
+    .tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 600; }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    #qr-reader { border-radius: 12px; overflow: hidden; }
+    #qr-reader video { border-radius: 12px; }
+    .qr-scan-overlay { animation: pulse-border 1.5s ease-in-out infinite; }
+    @keyframes pulse-border {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+      50% { box-shadow: 0 0 0 12px rgba(37, 99, 235, 0); }
+    }
+    .face-video-wrap { position: relative; border-radius: 12px; overflow: hidden; background: #0f172a; }
+    .face-video-wrap video, .face-video-wrap canvas { width: 100%; display: block; }
+    .face-video-wrap canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+            <i class="fas fa-clipboard-user text-white text-lg"></i>
+          </div>
+          <div>
+            <h1 class="text-lg font-bold text-slate-800">Attendance System</h1>
+            <p class="text-xs text-slate-500">HQ Office & Branches</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div id="currentDateTime" class="text-sm text-slate-600 hidden md:block"></div>
+          <a href="admin.html" id="adminLink" class="hidden text-xs text-slate-500 hover:text-blue-600 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-blue-50 transition">
+            <i class="fas fa-shield-halved"></i> <span class="hidden sm:inline">Admin</span>
+          </a>
+          <button onclick="exportAllData()" id="btnExport" class="hidden text-slate-500 hover:text-blue-600 transition" title="Export All Data">
+            <i class="fas fa-download"></i>
+          </button>
+          <button onclick="showSettings()" id="btnSettings" class="hidden text-slate-500 hover:text-blue-600 transition" title="Settings">
+            <i class="fas fa-cog"></i>
+          </button>
+          <div class="h-6 w-px bg-slate-200"></div>
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold" id="headerAvatar">?</div>
+            <div class="hidden sm:block">
+              <p class="text-xs font-medium text-slate-800" id="headerUserName">—</p>
+              <p class="text-[10px] text-slate-400" id="headerUserRole">—</p>
+            </div>
+          </div>
+          <button onclick="logout()" class="text-slate-400 hover:text-rose-600 transition" title="Logout">
+            <i class="fas fa-sign-out-alt"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="bg-white border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex gap-1 overflow-x-auto scrollbar-thin">
+        <button onclick="switchTab('attendance')" id="tab-attendance" class="tab-btn px-5 py-3 text-sm text-slate-600 hover:text-blue-600 whitespace-nowrap tab-active">
+          <i class="fas fa-fingerprint mr-2"></i>Sign In / Out
+        </button>
+        <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn admin-only px-5 py-3 text-sm text-slate-600 hover:text-blue-600 whitespace-nowrap">
+          <i class="fas fa-chart-pie mr-2"></i>Dashboard
+        </button>
+        <button onclick="switchTab('reports')" id="tab-reports" class="tab-btn admin-only px-5 py-3 text-sm text-slate-600 hover:text-blue-600 whitespace-nowrap">
+          <i class="fas fa-file-alt mr-2"></i>Reports
+        </button>
+        <button onclick="switchTab('staff')" id="tab-staff" class="tab-btn admin-only px-5 py-3 text-sm text-slate-600 hover:text-blue-600 whitespace-nowrap">
+          <i class="fas fa-users mr-2"></i>Staff
+        </button>
+        <button onclick="switchTab('branches')" id="tab-branches" class="tab-btn admin-only px-5 py-3 text-sm text-slate-600 hover:text-blue-600 whitespace-nowrap">
+          <i class="fas fa-building mr-2"></i>Branches
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- ==================== ATTENDANCE TAB ==================== -->
+    <section id="panel-attendance" class="tab-panel">
+      <div class="grid lg:grid-cols-3 gap-6">
+        <!-- Sign In / Out Card -->
+        <div class="lg:col-span-1 space-y-4">
+          <!-- Face Recognition Card -->
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <h2 class="text-lg font-semibold text-slate-800 mb-3 flex items-center gap-2">
+              <i class="fas fa-face-viewfinder text-violet-600"></i> Face Recognition
+            </h2>
+            <p class="text-xs text-slate-500 mb-4">Look at the camera to identify and clock in/out</p>
+
+            <div id="faceScannerArea" class="hidden mb-3">
+              <div class="face-video-wrap border-2 border-violet-300">
+                <video id="faceVideo" autoplay muted playsinline></video>
+                <canvas id="faceOverlay"></canvas>
+              </div>
+              <p id="faceStatus" class="text-xs text-center text-slate-500 mt-2">Initializing models…</p>
+              <div class="grid grid-cols-2 gap-2 mt-3">
+                <button onclick="captureAndRecognize()" id="btnFaceCapture" class="bg-violet-600 hover:bg-violet-700 text-white font-semibold py-2.5 rounded-xl transition text-sm">
+                  <i class="fas fa-user-check mr-1"></i> Recognize
+                </button>
+                <button onclick="stopFaceScanner()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 rounded-xl transition text-sm">
+                  <i class="fas fa-times mr-1"></i> Stop
+                </button>
+              </div>
+            </div>
+
+            <button id="btnStartFace" onclick="startFaceScanner()" class="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-sm">
+              <i class="fas fa-face-viewfinder"></i> Start Face Scan
+            </button>
+            <div id="faceScanResult" class="mt-3 hidden"></div>
+          </div>
+
+          <!-- QR Scan Card -->
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <h2 class="text-lg font-semibold text-slate-800 mb-3 flex items-center gap-2">
+              <i class="fas fa-qrcode text-blue-600"></i> Scan QR Code
+            </h2>
+            <p class="text-xs text-slate-500 mb-4">Scan employee QR badge to auto-fill and clock in/out</p>
+
+            <div id="qrScannerArea" class="hidden mb-3">
+              <div id="qr-reader" class="w-full rounded-xl overflow-hidden border-2 border-blue-200 qr-scan-overlay"></div>
+              <button onclick="stopQRScanner()" class="mt-3 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 rounded-xl transition text-sm">
+                <i class="fas fa-times mr-1"></i> Stop Scanner
+              </button>
+            </div>
+
+            <button id="btnStartScan" onclick="startQRScanner()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-sm">
+              <i class="fas fa-camera"></i> Open Camera & Scan QR
+            </button>
+
+            <div id="qrScanResult" class="mt-3 hidden"></div>
+          </div>
+
+          <!-- Manual Sign In / Out Card -->
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <h2 class="text-lg font-semibold text-slate-800 mb-5 flex items-center gap-2">
+              <i class="fas fa-user-check text-blue-600"></i> Manual Attendance
+            </h2>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Employee</label>
+                <select id="attEmployee" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+                  <option value="">-- Select Employee --</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Branch / Location</label>
+                <select id="attBranch" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+                  <option value="">-- Select Branch --</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Notes (optional)</label>
+                <input type="text" id="attNotes" placeholder="e.g. Late due to traffic" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
+              </div>
+
+              <div class="grid grid-cols-2 gap-3 pt-2">
+                <button onclick="signIn()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-sm">
+                  <i class="fas fa-sign-in-alt"></i> Sign In
+                </button>
+                <button onclick="signOut()" class="bg-rose-600 hover:bg-rose-700 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-sm">
+                  <i class="fas fa-sign-out-alt"></i> Sign Out
+                </button>
+              </div>
+            </div>
+
+            <div id="attMessage" class="mt-4 hidden"></div>
+          </div>
+        </div>
+
+        <!-- Today's Activity -->
+        <div class="lg:col-span-2">
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <div class="flex items-center justify-between mb-5">
+              <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <i class="fas fa-clock text-blue-600"></i> Today's Activity
+              </h2>
+              <span id="todayCount" class="text-sm bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium">0 records</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="text-left text-slate-500 border-b border-slate-100">
+                    <th class="pb-3 font-medium">Employee</th>
+                    <th class="pb-3 font-medium">Branch</th>
+                    <th class="pb-3 font-medium">Sign In</th>
+                    <th class="pb-3 font-medium">Sign Out</th>
+                    <th class="pb-3 font-medium">Duration</th>
+                    <th class="pb-3 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="todayTableBody" class="divide-y divide-slate-50">
+                </tbody>
+              </table>
+              <div id="todayEmpty" class="text-center py-12 text-slate-400 hidden">
+                <i class="fas fa-inbox text-4xl mb-3"></i>
+                <p>No attendance records for today yet.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== DASHBOARD TAB ==================== -->
+    <section id="panel-dashboard" class="tab-panel hidden">
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm card-hover">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-slate-500">Present Today</p>
+              <p id="kpiPresent" class="text-3xl font-bold text-emerald-600 mt-1">0</p>
+            </div>
+            <div class="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center">
+              <i class="fas fa-user-check text-emerald-600 text-xl"></i>
+            </div>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm card-hover">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-slate-500">Absent Today</p>
+              <p id="kpiAbsent" class="text-3xl font-bold text-rose-600 mt-1">0</p>
+            </div>
+            <div class="w-12 h-12 bg-rose-50 rounded-xl flex items-center justify-center">
+              <i class="fas fa-user-times text-rose-600 text-xl"></i>
+            </div>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm card-hover">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-slate-500">Late Arrivals</p>
+              <p id="kpiLate" class="text-3xl font-bold text-amber-600 mt-1">0</p>
+            </div>
+            <div class="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center">
+              <i class="fas fa-hourglass-half text-amber-600 text-xl"></i>
+            </div>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm card-hover">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-slate-500">Total Staff</p>
+              <p id="kpiTotal" class="text-3xl font-bold text-blue-600 mt-1">0</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
+              <i class="fas fa-users text-blue-600 text-xl"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-6 mb-6">
+        <!-- Branch Breakdown -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <h3 class="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+            <i class="fas fa-building text-blue-600"></i> Attendance by Branch (Today)
+          </h3>
+          <canvas id="branchChart" height="220"></canvas>
+        </div>
+
+        <!-- Weekly Trend -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <h3 class="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+            <i class="fas fa-chart-line text-blue-600"></i> Last 7 Days Trend
+          </h3>
+          <canvas id="trendChart" height="220"></canvas>
+        </div>
+      </div>
+
+      <!-- Currently Present -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <h3 class="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+          <i class="fas fa-user-clock text-blue-600"></i> Currently Signed In
+        </h3>
+        <div id="currentlyPresent" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== REPORTS TAB ==================== -->
+    <section id="panel-reports" class="tab-panel hidden">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-slate-800 mb-5 flex items-center gap-2">
+          <i class="fas fa-file-alt text-blue-600"></i> Generate Reports
+        </h2>
+
+        <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Report Type</label>
+            <select id="reportType" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Branch</label>
+            <select id="reportBranch" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="all">All Branches</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">From Date</label>
+            <input type="date" id="reportFrom" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">To Date</label>
+            <input type="date" id="reportTo" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div class="flex items-end">
+            <button onclick="generateReport()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+              <i class="fas fa-search"></i> Generate
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2 mb-4">
+          <button onclick="quickReport('today')" class="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg transition">Today</button>
+          <button onclick="quickReport('yesterday')" class="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg transition">Yesterday</button>
+          <button onclick="quickReport('thisWeek')" class="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg transition">This Week</button>
+          <button onclick="quickReport('lastWeek')" class="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg transition">Last Week</button>
+          <button onclick="quickReport('thisMonth')" class="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg transition">This Month</button>
+          <button onclick="quickReport('lastMonth')" class="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg transition">Last Month</button>
+          <button onclick="quickReport('thisQuarter')" class="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg transition">This Quarter</button>
+        </div>
+      </div>
+
+      <!-- Report Results -->
+      <div id="reportResults" class="hidden">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 id="reportTitle" class="text-lg font-semibold text-slate-800"></h3>
+              <p id="reportSubtitle" class="text-sm text-slate-500"></p>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="printReport()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-sm font-medium transition flex items-center gap-2">
+                <i class="fas fa-print"></i> Print
+              </button>
+              <button onclick="exportReportCSV()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium transition flex items-center gap-2">
+                <i class="fas fa-file-csv"></i> Export CSV
+              </button>
+            </div>
+          </div>
+
+          <!-- Summary Stats -->
+          <div id="reportSummary" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6"></div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm" id="reportTable">
+              <thead>
+                <tr class="text-left text-slate-500 border-b border-slate-200 bg-slate-50">
+                  <th class="px-3 py-3 font-medium">Date</th>
+                  <th class="px-3 py-3 font-medium">Employee</th>
+                  <th class="px-3 py-3 font-medium">Branch</th>
+                  <th class="px-3 py-3 font-medium">Sign In</th>
+                  <th class="px-3 py-3 font-medium">Sign Out</th>
+                  <th class="px-3 py-3 font-medium">Hours</th>
+                  <th class="px-3 py-3 font-medium">Status</th>
+                  <th class="px-3 py-3 font-medium">Notes</th>
+                </tr>
+              </thead>
+              <tbody id="reportTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== STAFF TAB ==================== -->
+    <section id="panel-staff" class="tab-panel hidden">
+      <div class="grid lg:grid-cols-3 gap-6">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <h2 class="text-lg font-semibold text-slate-800 mb-5 flex items-center gap-2">
+            <i class="fas fa-user-plus text-blue-600"></i> Add Staff
+          </h2>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Full Name *</label>
+              <input type="text" id="staffName" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500" placeholder="John Doe" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Employee ID *</label>
+              <input type="text" id="staffId" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500" placeholder="EMP001" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Department</label>
+              <input type="text" id="staffDept" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Operations" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Default Branch</label>
+              <select id="staffBranch" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"></select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+              <input type="text" id="staffPhone" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500" placeholder="+254 7XX XXX XXX" />
+            </div>
+            <button onclick="addStaff()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition">
+              <i class="fas fa-plus mr-2"></i> Add Employee
+            </button>
+          </div>
+        </div>
+
+        <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div class="flex items-center justify-between mb-5">
+            <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              <i class="fas fa-users text-blue-600"></i> Staff Directory
+            </h2>
+            <input type="text" id="staffSearch" oninput="renderStaffList()" placeholder="Search staff..." class="border border-slate-300 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 w-48" />
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-slate-500 border-b border-slate-100">
+                  <th class="pb-3 font-medium">ID</th>
+                  <th class="pb-3 font-medium">Name</th>
+                  <th class="pb-3 font-medium">Department</th>
+                  <th class="pb-3 font-medium">Branch</th>
+                  <th class="pb-3 font-medium">Phone</th>
+                  <th class="pb-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="staffTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== BRANCHES TAB ==================== -->
+    <section id="panel-branches" class="tab-panel hidden">
+      <div class="grid lg:grid-cols-3 gap-6">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <h2 class="text-lg font-semibold text-slate-800 mb-5 flex items-center gap-2">
+            <i class="fas fa-plus-circle text-blue-600"></i> Add Branch
+          </h2>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Branch Name *</label>
+              <input type="text" id="branchName" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. Nairobi Branch" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Branch Code *</label>
+              <input type="text" id="branchCode" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. NBO" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Location / City</label>
+              <input type="text" id="branchLocation" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nairobi" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Type</label>
+              <select id="branchType" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="HQ">Headquarters</option>
+                <option value="Branch">Branch</option>
+                <option value="Regional">Regional Office</option>
+              </select>
+            </div>
+            <button onclick="addBranch()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition">
+              <i class="fas fa-plus mr-2"></i> Add Branch
+            </button>
+          </div>
+        </div>
+
+        <div class="lg:col-span-2">
+          <div class="grid sm:grid-cols-2 gap-4" id="branchesGrid"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 hidden">
+    <div class="bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 max-w-sm">
+      <i id="toastIcon" class="fas fa-check-circle text-emerald-400"></i>
+      <span id="toastMsg"></span>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-semibold">Settings</h3>
+        <button onclick="closeSettings()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Work Start Time (Late after)</label>
+          <input type="time" id="settingStartTime" value="08:30" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Company Name</label>
+          <input type="text" id="settingCompany" value="My Company Ltd" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div class="pt-2 border-t border-slate-100">
+          <button onclick="clearAllData()" class="w-full bg-rose-50 text-rose-600 hover:bg-rose-100 font-medium py-2.5 rounded-xl transition text-sm">
+            <i class="fas fa-trash-alt mr-2"></i> Clear All Data
+          </button>
+        </div>
+        <button onclick="saveSettings()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition">
+          Save Settings
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Code Badge Modal -->
+  <div id="qrModal" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-center">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-slate-800">Employee QR Badge</h3>
+        <button onclick="closeQRModal()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+      </div>
+      <div id="qrBadgeContent" class="bg-slate-50 rounded-xl p-5 border border-slate-200">
+        <p id="qrStaffName" class="font-semibold text-slate-800 text-lg"></p>
+        <p id="qrStaffId" class="text-sm text-slate-500 mb-4"></p>
+        <canvas id="qrCanvas" class="mx-auto bg-white p-2 rounded-lg shadow-sm"></canvas>
+        <p id="qrBranch" class="text-xs text-slate-400 mt-3"></p>
+      </div>
+      <div class="flex gap-2 mt-5">
+        <button onclick="downloadQR()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-xl transition text-sm">
+          <i class="fas fa-download mr-1"></i> Download
+        </button>
+        <button onclick="printQR()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 rounded-xl transition text-sm">
+          <i class="fas fa-print mr-1"></i> Print
+        </button>
+      </div>
+      <p class="text-xs text-slate-400 mt-3">Staff scan this code to sign in / out</p>
+    </div>
+  </div>
+
+  <!-- Quick Confirm Modal (after QR scan) -->
+  <div id="qrConfirmModal" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+      <div class="text-center mb-5">
+        <div id="qrConfirmAvatar" class="w-16 h-16 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-3"></div>
+        <h3 id="qrConfirmName" class="text-lg font-semibold text-slate-800"></h3>
+        <p id="qrConfirmMeta" class="text-sm text-slate-500"></p>
+        <p id="qrConfirmStatus" class="text-sm mt-2 font-medium"></p>
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Branch</label>
+        <select id="qrConfirmBranch" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"></select>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <button id="qrBtnSignIn" onclick="qrDoSignIn()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition">
+          <i class="fas fa-sign-in-alt mr-1"></i> Sign In
+        </button>
+        <button id="qrBtnSignOut" onclick="qrDoSignOut()" class="bg-rose-600 hover:bg-rose-700 text-white font-semibold py-3 rounded-xl transition">
+          <i class="fas fa-sign-out-alt mr-1"></i> Sign Out
+        </button>
+      </div>
+      <button onclick="closeQRConfirm()" class="w-full mt-3 text-slate-500 hover:text-slate-700 text-sm py-2">Cancel</button>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+  <script src="face.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

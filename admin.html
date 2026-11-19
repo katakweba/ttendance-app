@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Panel | Staff Attendance System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.14/dist/face-api.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 600; }
+    .status-in { background: #dcfce7; color: #166534; }
+    .status-out { background: #fee2e2; color: #991b1b; }
+    .status-late { background: #fef3c7; color: #92400e; }
+    .role-admin { background: #ede9fe; color: #5b21b6; }
+    .role-hr { background: #dbeafe; color: #1e40af; }
+    .role-staff { background: #f1f5f9; color: #475569; }
+    .sidebar-link.active { background: #eff6ff; color: #2563eb; border-right: 3px solid #2563eb; }
+    .photo-preview { width: 80px; height: 80px; object-fit: cover; border-radius: 50%; }
+    .face-enroll-wrap { position: relative; border-radius: 12px; overflow: hidden; background: #0f172a; max-width: 320px; }
+    .face-enroll-wrap video, .face-enroll-wrap canvas { width: 100%; display: block; }
+    .face-enroll-wrap canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+  <!-- Top Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-40">
+    <div class="flex items-center justify-between h-14 px-4 lg:px-6">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center">
+          <i class="fas fa-shield-halved text-white text-sm"></i>
+        </div>
+        <div>
+          <h1 class="text-sm font-bold text-slate-800">Admin Panel</h1>
+          <p class="text-[10px] text-slate-500" id="headerRole">—</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="index.html" class="text-xs text-slate-500 hover:text-blue-600 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition">
+          <i class="fas fa-fingerprint"></i> <span class="hidden sm:inline">Attendance</span>
+        </a>
+        <div class="h-6 w-px bg-slate-200"></div>
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold" id="userAvatar">A</div>
+          <div class="hidden sm:block">
+            <p class="text-xs font-medium text-slate-800" id="userName">—</p>
+            <p class="text-[10px] text-slate-400" id="userRoleLabel">—</p>
+          </div>
+        </div>
+        <button onclick="logout()" class="text-slate-400 hover:text-rose-600 transition ml-1" title="Logout">
+          <i class="fas fa-sign-out-alt"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="flex">
+    <!-- Sidebar -->
+    <aside class="w-56 bg-white border-r border-slate-200 min-h-[calc(100vh-3.5rem)] sticky top-14 hidden lg:block">
+      <nav class="py-4">
+        <p class="px-4 text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Management</p>
+        <a href="#" onclick="showSection('dashboard')" id="nav-dashboard" class="sidebar-link active flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition">
+          <i class="fas fa-chart-pie w-5 text-center"></i> Dashboard
+        </a>
+        <a href="#" onclick="showSection('staff')" id="nav-staff" class="sidebar-link flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition">
+          <i class="fas fa-users w-5 text-center"></i> Staff Registry
+        </a>
+        <a href="#" onclick="showSection('users')" id="nav-users" class="sidebar-link flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition">
+          <i class="fas fa-user-lock w-5 text-center"></i> User Credentials
+        </a>
+        <a href="#" onclick="showSection('branches')" id="nav-branches" class="sidebar-link flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition">
+          <i class="fas fa-building w-5 text-center"></i> Branches & Locations
+        </a>
+        <a href="#" onclick="showSection('reports')" id="nav-reports" class="sidebar-link flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition">
+          <i class="fas fa-file-alt w-5 text-center"></i> Reports
+        </a>
+        <div class="my-3 border-t border-slate-100"></div>
+        <p class="px-4 text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Quick Links</p>
+        <a href="index.html" class="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition">
+          <i class="fas fa-fingerprint w-5 text-center"></i> Sign In / Out
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Mobile Nav -->
+    <div class="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 flex justify-around py-2">
+      <button onclick="showSection('dashboard')" class="flex flex-col items-center text-[10px] text-slate-500 p-1"><i class="fas fa-chart-pie text-lg mb-0.5"></i>Dashboard</button>
+      <button onclick="showSection('staff')" class="flex flex-col items-center text-[10px] text-slate-500 p-1"><i class="fas fa-users text-lg mb-0.5"></i>Staff</button>
+      <button onclick="showSection('users')" class="flex flex-col items-center text-[10px] text-slate-500 p-1"><i class="fas fa-user-lock text-lg mb-0.5"></i>Users</button>
+      <button onclick="showSection('branches')" class="flex flex-col items-center text-[10px] text-slate-500 p-1"><i class="fas fa-building text-lg mb-0.5"></i>Branches</button>
+      <button onclick="showSection('reports')" class="flex flex-col items-center text-[10px] text-slate-500 p-1"><i class="fas fa-file-alt text-lg mb-0.5"></i>Reports</button>
+    </div>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-4 lg:p-6 pb-20 lg:pb-6 max-w-6xl">
+
+      <!-- ========== DASHBOARD ========== -->
+      <section id="sec-dashboard" class="admin-section">
+        <h2 class="text-xl font-bold text-slate-800 mb-5">Dashboard</h2>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+            <p class="text-sm text-slate-500">Present Today</p>
+            <p id="kpiPresent" class="text-3xl font-bold text-emerald-600 mt-1">0</p>
+          </div>
+          <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+            <p class="text-sm text-slate-500">Absent Today</p>
+            <p id="kpiAbsent" class="text-3xl font-bold text-rose-600 mt-1">0</p>
+          </div>
+          <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+            <p class="text-sm text-slate-500">Total Staff</p>
+            <p id="kpiTotal" class="text-3xl font-bold text-blue-600 mt-1">0</p>
+          </div>
+          <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+            <p class="text-sm text-slate-500">User Accounts</p>
+            <p id="kpiUsers" class="text-3xl font-bold text-indigo-600 mt-1">0</p>
+          </div>
+        </div>
+        <div class="grid lg:grid-cols-2 gap-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+            <h3 class="font-semibold text-slate-800 mb-4">Attendance by Branch (Today)</h3>
+            <canvas id="branchChart" height="200"></canvas>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+            <h3 class="font-semibold text-slate-800 mb-4">Last 7 Days</h3>
+            <canvas id="trendChart" height="200"></canvas>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm mt-6">
+          <h3 class="font-semibold text-slate-800 mb-4">Currently Signed In</h3>
+          <div id="currentlyPresent" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+        </div>
+      </section>
+
+      <!-- ========== STAFF REGISTRY ========== -->
+      <section id="sec-staff" class="admin-section hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <h2 class="text-xl font-bold text-slate-800">Staff Registry</h2>
+          <button onclick="openStaffModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition">
+            <i class="fas fa-plus mr-1"></i> Register Staff
+          </button>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="p-4 border-b border-slate-100">
+            <input type="text" id="staffSearch" oninput="renderAdminStaff()" placeholder="Search by name, ID, department..."
+              class="w-full sm:w-72 border border-slate-300 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 text-slate-500">
+                <tr>
+                  <th class="text-left px-4 py-3 font-medium">Photo</th>
+                  <th class="text-left px-4 py-3 font-medium">Employee</th>
+                  <th class="text-left px-4 py-3 font-medium">Department</th>
+                  <th class="text-left px-4 py-3 font-medium">Branch / Location</th>
+                  <th class="text-left px-4 py-3 font-medium">Coordinates</th>
+                  <th class="text-left px-4 py-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="adminStaffBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== USER CREDENTIALS ========== -->
+      <section id="sec-users" class="admin-section hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <div>
+            <h2 class="text-xl font-bold text-slate-800">User Credentials</h2>
+            <p class="text-sm text-slate-500">Manage login accounts and assign roles</p>
+          </div>
+          <button onclick="openUserModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition">
+            <i class="fas fa-user-plus mr-1"></i> Create User
+          </button>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 text-slate-500">
+                <tr>
+                  <th class="text-left px-4 py-3 font-medium">Username</th>
+                  <th class="text-left px-4 py-3 font-medium">Name</th>
+                  <th class="text-left px-4 py-3 font-medium">Role</th>
+                  <th class="text-left px-4 py-3 font-medium">Linked Staff</th>
+                  <th class="text-left px-4 py-3 font-medium">Status</th>
+                  <th class="text-left px-4 py-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="usersBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="mt-4 p-4 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-800">
+          <i class="fas fa-info-circle mr-1"></i>
+          <strong>Roles:</strong>
+          <span class="ml-2"><b>Admin</b> — full system access ·</span>
+          <span class="ml-1"><b>HR</b> — staff, credentials, reports ·</span>
+          <span class="ml-1"><b>Staff</b> — sign in/out only</span>
+        </div>
+      </section>
+
+      <!-- ========== BRANCHES ========== -->
+      <section id="sec-branches" class="admin-section hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <h2 class="text-xl font-bold text-slate-800">Branches & Locations</h2>
+          <button onclick="openBranchModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition">
+            <i class="fas fa-plus mr-1"></i> Add Branch
+          </button>
+        </div>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4" id="adminBranchesGrid"></div>
+      </section>
+
+      <!-- ========== REPORTS ========== -->
+      <section id="sec-reports" class="admin-section hidden">
+        <h2 class="text-xl font-bold text-slate-800 mb-5">Reports</h2>
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm mb-5">
+          <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Type</label>
+              <select id="reportType" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Branch</label>
+              <select id="reportBranch" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="all">All Branches</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">From</label>
+              <input type="date" id="reportFrom" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">To</label>
+              <input type="date" id="reportTo" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div class="flex items-end">
+              <button onclick="generateAdminReport()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-xl text-sm transition">
+                <i class="fas fa-search mr-1"></i> Generate
+              </button>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="quickAdminReport('today')" class="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg">Today</button>
+            <button onclick="quickAdminReport('thisWeek')" class="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg">This Week</button>
+            <button onclick="quickAdminReport('thisMonth')" class="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg">This Month</button>
+            <button onclick="quickAdminReport('thisQuarter')" class="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg">This Quarter</button>
+          </div>
+        </div>
+        <div id="adminReportResults" class="hidden">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 id="adminReportTitle" class="font-semibold text-slate-800"></h3>
+                <p id="adminReportSub" class="text-sm text-slate-500"></p>
+              </div>
+              <button onclick="exportAdminCSV()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium">
+                <i class="fas fa-file-csv mr-1"></i> Export CSV
+              </button>
+            </div>
+            <div id="adminReportSummary" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5"></div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-slate-500">
+                  <tr>
+                    <th class="px-3 py-2 text-left font-medium">Date</th>
+                    <th class="px-3 py-2 text-left font-medium">Employee</th>
+                    <th class="px-3 py-2 text-left font-medium">Branch</th>
+                    <th class="px-3 py-2 text-left font-medium">In</th>
+                    <th class="px-3 py-2 text-left font-medium">Out</th>
+                    <th class="px-3 py-2 text-left font-medium">Hours</th>
+                    <th class="px-3 py-2 text-left font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="adminReportBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ========== STAFF MODAL ========== -->
+  <div id="staffModal" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 my-8">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-semibold" id="staffModalTitle">Register Staff</h3>
+        <button onclick="closeStaffModal()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+      </div>
+      <input type="hidden" id="editStaffId" />
+      <div class="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+        <!-- Facial Photo + Face Enrollment -->
+        <div class="p-3 bg-violet-50 rounded-xl border border-violet-100">
+          <label class="block text-sm font-medium text-slate-700 mb-2">
+            <i class="fas fa-face-viewfinder text-violet-600 mr-1"></i> Facial Recognition Enrollment
+          </label>
+          <div class="flex items-start gap-4 mb-3">
+            <div class="relative">
+              <img id="staffPhotoPreview" src="" alt="" class="photo-preview bg-slate-100 border-2 border-slate-200 hidden" />
+              <div id="staffPhotoPlaceholder" class="w-20 h-20 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400">
+                <i class="fas fa-camera text-xl"></i>
+              </div>
+            </div>
+            <div class="flex-1">
+              <input type="file" id="staffPhotoInput" accept="image/*" capture="user" onchange="previewStaffPhoto(event)"
+                class="text-sm text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-violet-100 file:text-violet-700 file:font-medium file:text-sm" />
+              <p class="text-[10px] text-slate-500 mt-1">Upload a clear frontal photo, or enroll live below</p>
+              <p id="faceEnrollStatus" class="text-xs mt-1 text-slate-400">No face descriptor enrolled</p>
+            </div>
+          </div>
+          <div id="faceEnrollArea" class="hidden mb-2">
+            <div class="face-enroll-wrap mx-auto border-2 border-violet-300">
+              <video id="enrollVideo" autoplay muted playsinline></video>
+              <canvas id="enrollOverlay"></canvas>
+            </div>
+            <div class="flex gap-2 mt-2 justify-center">
+              <button type="button" onclick="captureFaceEnrollment()" class="bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-4 py-2 rounded-xl">
+                <i class="fas fa-check mr-1"></i> Capture Face
+              </button>
+              <button type="button" onclick="stopFaceEnrollment()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm px-4 py-2 rounded-xl">Stop</button>
+            </div>
+          </div>
+          <button type="button" id="btnStartEnroll" onclick="startFaceEnrollment()" class="w-full text-sm text-violet-700 bg-violet-100 hover:bg-violet-200 font-medium py-2 rounded-xl transition">
+            <i class="fas fa-video mr-1"></i> Enroll Face via Camera
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Full Name *</label>
+            <input type="text" id="sName" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Employee ID *</label>
+            <input type="text" id="sEmpId" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Department</label>
+            <input type="text" id="sDept" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+            <input type="text" id="sPhone" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Email</label>
+          <input type="email" id="sEmail" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Assigned Branch *</label>
+          <select id="sBranch" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"></select>
+        </div>
+
+        <!-- Location Coordinates -->
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-sm font-medium text-slate-700"><i class="fas fa-map-marker-alt text-rose-500 mr-1"></i> Location Coordinates</label>
+            <button type="button" onclick="captureStaffGPS()" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+              <i class="fas fa-crosshairs mr-1"></i> Use Current GPS
+            </button>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Latitude</label>
+              <input type="number" step="any" id="sLat" placeholder="-1.286389" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Longitude</label>
+              <input type="number" step="any" id="sLng" placeholder="36.817223" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5">
+        <button onclick="closeStaffModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 rounded-xl transition">Cancel</button>
+        <button onclick="saveStaff()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition">Save Staff</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== USER MODAL ========== -->
+  <div id="userModal" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-semibold" id="userModalTitle">Create User</h3>
+        <button onclick="closeUserModal()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+      </div>
+      <input type="hidden" id="editUserId" />
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Full Name *</label>
+          <input type="text" id="uName" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Username *</label>
+          <input type="text" id="uUsername" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Password <span id="pwdHint" class="text-slate-400 font-normal">*</span></label>
+          <input type="password" id="uPassword" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter password" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Role *</label>
+          <select id="uRole" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="staff">Staff (Sign In/Out only)</option>
+            <option value="hr">Human Resource</option>
+            <option value="admin">Administrator</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Link to Staff Record</label>
+          <select id="uStaffId" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">— None —</option>
+          </select>
+          <p class="text-[10px] text-slate-400 mt-1">Required for Staff role so they can clock in as themselves</p>
+        </div>
+        <div id="uActiveWrap" class="hidden">
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" id="uActive" checked class="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+            Account active
+          </label>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5">
+        <button onclick="closeUserModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 rounded-xl transition">Cancel</button>
+        <button onclick="saveUser()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition">Save User</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== BRANCH MODAL ========== -->
+  <div id="branchModal" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-semibold" id="branchModalTitle">Add Branch</h3>
+        <button onclick="closeBranchModal()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+      </div>
+      <input type="hidden" id="editBranchId" />
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Branch Name *</label>
+          <input type="text" id="bName" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Code *</label>
+            <input type="text" id="bCode" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Type</label>
+            <select id="bType" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="HQ">Headquarters</option>
+              <option value="Branch">Branch</option>
+              <option value="Regional">Regional Office</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">City / Location</label>
+          <input type="text" id="bLocation" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-sm font-medium text-slate-700">GPS Coordinates</label>
+            <button type="button" onclick="captureBranchGPS()" class="text-xs text-blue-600 font-medium"><i class="fas fa-crosshairs mr-1"></i> Current GPS</button>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <input type="number" step="any" id="bLat" placeholder="Latitude" class="border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="number" step="any" id="bLng" placeholder="Longitude" class="border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5">
+        <button onclick="closeBranchModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 rounded-xl transition">Cancel</button>
+        <button onclick="saveBranch()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-20 lg:bottom-6 right-6 z-50 hidden">
+    <div class="bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 max-w-sm">
+      <i id="toastIcon" class="fas fa-check-circle text-emerald-400"></i>
+      <span id="toastMsg"></span>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+  <script src="face.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>
